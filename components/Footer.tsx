@@ -1,4 +1,10 @@
 import Link from "next/link";
+<Link href="/terms" className="hover:text-red-400">
+  Syarat & Ketentuan
+</Link>
+<Link href="/discord" className="hover:text-red-400">
+  Layanan Discord
+</Link>
 
 export default function Footer() {
   const discord =
