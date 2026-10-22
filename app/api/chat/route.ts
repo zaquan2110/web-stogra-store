@@ -1,54 +1,63 @@
-import { NextResponse } from "next/server";
 
-export async function GET() {
-  return NextResponse.json({
-    success: true,
-    service: "STOGRA STORE Chat API",
-    message: "API aktif",
-  });
-}
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+export const dynamic = "force-dynamic";
+
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_NAME_LENGTH = 80;
+const MAX_CONTACT_LENGTH = 100;
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const name = String(body.name ?? "").trim();
-    const discord = String(body.discord ?? "").trim();
-    const product = String(body.product ?? "").trim();
-    const message = String(body.message ?? "").trim();
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const contact =
+      typeof body.discord === "string" ? body.discord.trim() : "";
+    const product =
+      typeof body.product === "string" ? body.product.trim() : "";
+    const message =
+      typeof body.message === "string" ? body.message.trim() : "";
 
-    if (!name || !discord || !message) {
+    if (!name || name.length > MAX_NAME_LENGTH) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Nama, username Discord, dan pesan wajib diisi.",
-        },
+        { error: "Nama wajib diisi dan maksimal 80 karakter." },
         { status: 400 }
       );
     }
 
-    if (
-      name.length > 100 ||
-      discord.length > 100 ||
-      product.length > 150 ||
-      message.length > 3000
-    ) {
+    if (contact.length > MAX_CONTACT_LENGTH) {
       return NextResponse.json(
-        { success: false, message: "Data melebihi batas karakter." },
+        { error: "Kontak maksimal 100 karakter." },
         { status: 400 }
       );
     }
 
-    // Belum menyimpan pesan ke database.
-    // Integrasi database akan ditambahkan pada tahap berikutnya.
-    return NextResponse.json({
-      success: true,
-      message: "Data pesanan berhasil diterima oleh API.",
-      order: { name, discord, product, message },
-    });
+    if (product.length > 150) {
+      return NextResponse.json(
+        { error: "Nama produk maksimal 150 karakter." },
+        { status: 400 }
+      );
+    }
+
+    if (!message || message.length > MAX_MESSAGE_LENGTH) {
+      return NextResponse.json(
+        { error: "Pesan wajib diisi dan maksimal 2000 karakter." },
+        { status: 400 }
+      );
+    }
+
+    // Penyimpanan pesan akan disambungkan ke database pada tahap berikutnya.
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Pesan lolos validasi.",
+      },
+      { status: 200 }
+    );
   } catch {
     return NextResponse.json(
-      { success: false, message: "Format permintaan tidak valid." },
+      { error: "Format permintaan tidak valid." },
       { status: 400 }
     );
   }
