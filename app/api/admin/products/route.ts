@@ -1,332 +1,288 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !key) return null;
+  if (!url || !serviceKey) {
+    throw new Error("Server configuration is incomplete.");
+  }
 
-  return createClient(url, key, {
+  return createClient(url, serviceKey, {
     auth: {
-      autoRefreshToken: false,
       persistSession: false,
+      autoRefreshToken: false,
     },
   });
 }
 
 function isAuthorized(request: NextRequest) {
-  const expected = process.env.ADMIN_API_SECRET;
-  const provided = request.headers.get("x-admin-secret");
+  const secret = process.env.ADMIN_API_SECRET;
+  const suppliedSecret = request.headers.get("x-admin-secret");
 
-  return Boolean(expected && provided && provided === expected);
+  return Boolean(secret && suppliedSecret && suppliedSecret === secret);
 }
 
-// Ambil daftar produk, termasuk yang nonaktif.
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json(
-      { error: "Akses ditolak." },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = getAdminClient();
+  try {
+    const supabase = getAdminClient();
 
-  if (!supabase) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Products GET error:", error.message);
+      return NextResponse.json(
+        { error: "Failed to load products" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ products: data ?? [] });
+  } catch (error) {
+    console.error("Products configuration error:", error);
     return NextResponse.json(
-      { error: "Konfigurasi database belum tersedia." },
-      { status: 503 }
-    );
-  }
-
-  const { data, error } = await supabase
-    .from("products")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(200);
-
-  if (error) {
-    return NextResponse.json(
-      { error: "Gagal mengambil produk." },
+      { error: "Server configuration error" },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ products: data ?? [] });
 }
 
-// Tambahkan produk baru.
 export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json(
-      { error: "Akses ditolak." },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  let body: Record<string, unknown>;
 
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Format data tidak valid." },
-      { status: 400 }
-    );
-  }
+    const body = await request.json();
 
-  const name = String(body.name ?? "").trim();
-  const slug = String(body.slug ?? "").trim().toLowerCase();
-  const category = String(body.category ?? "").trim();
-  const description = String(body.description ?? "").trim();
-  const price = Number(body.price);
-  const imageUrl = String(body.image_url ?? "").trim();
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const slug = typeof body.slug === "string" ? body.slug.trim() : "";
+    const category =
+      typeof body.category === "string" ? body.category.trim() : "";
+    const description =
+      typeof body.description === "string" ? body.description.trim() : "";
+    const price = Number(body.price);
+    const status = body.status === "inactive" ? "inactive" : "active";
+    const imageUrl =
+      typeof body.image_url === "string" ? body.image_url.trim() : null;
 
-  if (
-    name.length < 2 ||
-    name.length > 120 ||
-    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
-    slug.length > 120 ||
-    category.length < 2 ||
-    category.length > 60 ||
-    description.length > 5000 ||
-    !Number.isFinite(price) ||
-    price < 0 ||
-    price > 1_000_000_000
-  ) {
-    return NextResponse.json(
-      { error: "Nama, slug, kategori, deskripsi, atau harga tidak valid." },
-      { status: 400 }
-    );
-  }
-
-  if (imageUrl) {
-    try {
-      const parsed = new URL(imageUrl);
-
-      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-        throw new Error("Invalid image URL");
-      }
-    } catch {
-      return NextResponse.json(
-        { error: "URL gambar tidak valid." },
-        { status: 400 }
-      );
-    }
-  }
-
-  const supabase = getAdminClient();
-
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Konfigurasi database belum tersedia." },
-      { status: 503 }
-    );
-  }
-
-  const { data, error } = await supabase
-    .from("products")
-    .insert({
-      name,
-      slug,
-      category,
-      description,
-      price,
-      image_url: imageUrl || null,
-      status: "active",
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    return NextResponse.json(
-      {
-        error:
-          error.code === "23505"
-            ? "Slug produk sudah digunakan."
-            : "Produk gagal disimpan.",
-      },
-      { status: 400 }
-    );
-  }
-
-  return NextResponse.json(
-    { message: "Produk berhasil ditambahkan.", product: data },
-    { status: 201 }
-  );
-}
-
-// Edit produk atau aktifkan/nonaktifkan produk.
-export async function PATCH(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json(
-      { error: "Akses ditolak." },
-      { status: 401 }
-    );
-  }
-
-  let body: Record<string, unknown>;
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Format data tidak valid." },
-      { status: 400 }
-    );
-  }
-
-  const id = String(body.id ?? "").trim();
-
-  if (!id) {
-    return NextResponse.json(
-      { error: "ID produk wajib diisi." },
-      { status: 400 }
-    );
-  }
-
-  const updates: Record<string, string | number | boolean | null> = {};
-
-  if (body.name !== undefined) {
-    const name = String(body.name).trim();
-    if (name.length < 2 || name.length > 120) {
-      return NextResponse.json(
-        { error: "Nama produk tidak valid." },
-        { status: 400 }
-      );
-    }
-    updates.name = name;
-  }
-
-  if (body.slug !== undefined) {
-    const slug = String(body.slug).trim().toLowerCase();
     if (
+      !name ||
+      !slug ||
       !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
-      slug.length > 120
+      !category ||
+      !Number.isSafeInteger(price) ||
+      price < 0
     ) {
       return NextResponse.json(
-        { error: "Slug tidak valid." },
+        { error: "Invalid product data" },
         { status: 400 }
       );
     }
-    updates.slug = slug;
-  }
 
-  if (body.category !== undefined) {
-    const category = String(body.category).trim();
-    if (category.length < 2 || category.length > 60) {
+    const supabase = getAdminClient();
+
+    const { data, error } = await supabase
+      .from("products")
+      .insert({
+        name,
+        slug,
+        category,
+        description,
+        price,
+        status,
+        image_url: imageUrl || null,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Products POST error:", error.message);
       return NextResponse.json(
-        { error: "Kategori tidak valid." },
-        { status: 400 }
+        { error: "Failed to create product" },
+        { status: 500 }
       );
     }
-    updates.category = category;
+
+    return NextResponse.json({ product: data }, { status: 201 });
+  } catch (error) {
+    console.error("Products POST error:", error);
+    return NextResponse.json(
+      { error: "Invalid request or server error" },
+      { status: 400 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (body.description !== undefined) {
-    const description = String(body.description).trim();
-    if (description.length > 5000) {
+  try {
+    const body = await request.json();
+    const id = typeof body.id === "string" ? body.id : "";
+
+    if (!id) {
       return NextResponse.json(
-        { error: "Deskripsi terlalu panjang." },
+        { error: "Product ID is required" },
         { status: 400 }
       );
     }
-    updates.description = description;
-  }
 
-  if (body.price !== undefined) {
-    const price = Number(body.price);
-    if (!Number.isFinite(price) || price < 0 || price > 1_000_000_000) {
-      return NextResponse.json(
-        { error: "Harga tidak valid." },
-        { status: 400 }
-      );
+    const updates: Record<string, unknown> = {};
+
+    if (body.name !== undefined) {
+      if (typeof body.name !== "string" || !body.name.trim()) {
+        return NextResponse.json({ error: "Invalid name" }, { status: 400 });
+      }
+      updates.name = body.name.trim();
     }
-    updates.price = price;
-  }
 
-  if (body.image_url !== undefined) {
-    const imageUrl = String(body.image_url ?? "").trim();
+    if (body.slug !== undefined) {
+      if (
+        typeof body.slug !== "string" ||
+        !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.slug.trim())
+      ) {
+        return NextResponse.json({ error: "Invalid slug" }, { status: 400 });
+      }
+      updates.slug = body.slug.trim();
+    }
 
-    if (imageUrl) {
-      try {
-        const parsed = new URL(imageUrl);
-        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-          throw new Error("Invalid URL");
-        }
-      } catch {
+    if (body.category !== undefined) {
+      if (typeof body.category !== "string" || !body.category.trim()) {
         return NextResponse.json(
-          { error: "URL gambar tidak valid." },
+          { error: "Invalid category" },
           { status: 400 }
         );
       }
-
-      updates.image_url = imageUrl;
-    } else {
-      updates.image_url = null;
+      updates.category = body.category.trim();
     }
-  }
 
-  if (body.status !== undefined) {
-    const status = String(body.status);
-    if (!["active", "inactive"].includes(status)) {
+    if (body.description !== undefined) {
+      if (typeof body.description !== "string") {
+        return NextResponse.json(
+          { error: "Invalid description" },
+          { status: 400 }
+        );
+      }
+      updates.description = body.description.trim();
+    }
+
+    if (body.price !== undefined) {
+      const price = Number(body.price);
+      if (!Number.isSafeInteger(price) || price < 0) {
+        return NextResponse.json({ error: "Invalid price" }, { status: 400 });
+      }
+      updates.price = price;
+    }
+
+    if (body.status !== undefined) {
+      if (!["active", "inactive"].includes(body.status)) {
+        return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+      }
+      updates.status = body.status;
+    }
+
+    if (body.image_url !== undefined) {
+      if (
+        body.image_url !== null &&
+        typeof body.image_url !== "string"
+      ) {
+        return NextResponse.json(
+          { error: "Invalid image URL" },
+          { status: 400 }
+        );
+      }
+      updates.image_url =
+        typeof body.image_url === "string" ? body.image_url.trim() || null : null;
+    }
+
+    if (Object.keys(updates).length === 0) {
       return NextResponse.json(
-        { error: "Status produk tidak valid." },
+        { error: "No fields to update" },
         { status: 400 }
       );
     }
-    updates.status = status;
-  }
 
-  if (Object.keys(updates).length === 0) {
+    const supabase = getAdminClient();
+
+    const { data, error } = await supabase
+      .from("products")
+      .update(updates)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("Products PATCH error:", error.message);
+      return NextResponse.json(
+        { error: "Failed to update product" },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: "Product not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ product: data });
+  } catch (error) {
+    console.error("Products PATCH error:", error);
     return NextResponse.json(
-      { error: "Tidak ada perubahan yang dikirim." },
+      { error: "Invalid request or server error" },
       { status: 400 }
     );
   }
+}
 
-  updates.updated_at = new Date().toISOString();
-
-  const supabase = getAdminClient();
-
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Konfigurasi database belum tersedia." },
-      { status: 503 }
-    );
+export async function DELETE(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from("products")
-    .update(updates)
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
+  try {
+    const { id } = await request.json();
 
-  if (error) {
+    if (typeof id !== "string" || !id) {
+      return NextResponse.json(
+        { error: "Product ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getAdminClient();
+
+    const { error } = await supabase.from("products").delete().eq("id", id);
+
+    if (error) {
+      console.error("Products DELETE error:", error.message);
+      return NextResponse.json(
+        { error: "Failed to delete product" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Products DELETE error:", error);
     return NextResponse.json(
-      {
-        error:
-          error.code === "23505"
-            ? "Slug produk sudah digunakan."
-            : "Produk gagal diperbarui.",
-      },
+      { error: "Invalid request or server error" },
       { status: 400 }
     );
   }
-
-  if (!data) {
-    return NextResponse.json(
-      { error: "Produk tidak ditemukan." },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json({
-    message: "Produk berhasil diperbarui.",
-    product: data,
-  });
 }
