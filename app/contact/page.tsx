@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MessageCircle, ShieldCheck } from "lucide-react";
+import { MessageCircle, ShieldCheck, ArrowUpRight } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Kontak | STOGRA STORE",
@@ -12,7 +12,9 @@ export default function ContactPage() {
 
   const validDiscordUrl =
     discordUrl &&
-    /^https:\/\/(discord\.gg|discord\.com)\/[a-zA-Z0-9/-]+$/.test(discordUrl);
+    /^https:\/\/(discord\.gg|discord\.com)\/[a-zA-Z0-9/-]+$/.test(
+      discordUrl
+    );
 
   return (
     <main className="min-h-screen bg-[#080808] px-5 py-16 text-white">
@@ -40,7 +42,7 @@ export default function ContactPage() {
             <h2 className="mt-4 font-bold">Chat Website</h2>
 
             <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Buka halaman chat untuk memulai komunikasi terkait kebutuhanmu.
+              Hubungi staf melalui halaman chat website.
             </p>
           </Link>
 
@@ -53,4 +55,35 @@ export default function ContactPage() {
             >
               <ShieldCheck className="h-7 w-7 text-zinc-300" />
 
-              <h2 className="mt-4
+              <h2 className="mt-4 font-bold">Discord Resmi</h2>
+
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                Kunjungi server Discord STOGRA STORE untuk mendapatkan bantuan.
+              </p>
+
+              <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-red-400">
+                Buka Discord
+                <ArrowUpRight className="h-4 w-4" />
+              </span>
+            </a>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+              <ShieldCheck className="h-7 w-7 text-zinc-300" />
+
+              <h2 className="mt-4 font-bold">Discord Resmi</h2>
+
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                Tautan Discord belum dikonfigurasi.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <p className="mt-8 text-xs leading-6 text-zinc-500">
+          Pembayaran dilakukan berdasarkan instruksi staf. Jangan membagikan
+          kata sandi atau informasi keamanan akun Roblox kepada siapa pun.
+        </p>
+      </div>
+    </main>
+  );
+}
