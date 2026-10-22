@@ -1,179 +1,189 @@
-
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useCallback, useState } from "react";
 
-export default function ChatPage() {
-  const [name, setName] = useState("");
-  const [discord, setDiscord] = useState("");
-  const [product, setProduct] = useState("");
-  const [message, setMessage] = useState("");
-  const [status, setStatus] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+type ChatMessage = {
+  id: string;
+  sender_name: string;
+  sender_type: "customer" | "admin";
+  message: string;
+  order_id: string | null;
+  created_at: string;
+};
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStatus("");
-    setIsSuccess(false);
-    setIsSending(true);
+export default function AdminChatPage() {
+  const [secret, setSecret] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  const loadMessages = useCallback(async () => {
+    if (!secret.trim()) {
+      setError("Masukkan ADMIN_API_SECRET terlebih dahulu.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
+      const response = await fetch("/api/admin/chat", {
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
+          "x-admin-secret": secret.trim(),
         },
-        body: JSON.stringify({
-          name,
-          discord,
-          product,
-          message,
-        }),
+        cache: "no-store",
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Pesan gagal dikirim.");
+        throw new Error(result.error || "Gagal mengambil pesan.");
       }
 
-      setIsSuccess(true);
-      setStatus(
-        "Pesan berhasil disimpan! Admin dapat menindaklanjuti permintaanmu."
+      setMessages(result.messages ?? []);
+      setLoaded(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat mengambil pesan."
       );
-      setMessage("");
-    } catch (error) {
-      setStatus(
-        error instanceof Error
-          ? error.message
-          : "Terjadi kesalahan. Silakan coba lagi."
-      );
+      setLoaded(false);
     } finally {
-      setIsSending(false);
+      setLoading(false);
     }
-  }
-
-  const discordInvite =
-    process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ||
-    "https://discord.com/app";
+  }, [secret]);
 
   return (
-    <section className="container section">
-      <div className="mx-auto max-w-2xl">
-        <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-red-400">
-          Layanan Pelanggan
-        </p>
-
-        <h1 className="text-4xl font-black sm:text-5xl">
-          Chat <span className="text-red">STOGRA STORE</span>
-        </h1>
-
-        <p className="muted mt-4">
-          Kirim pertanyaan atau permintaan produk kepada STOGRA STORE.
-          Pembayaran akan dikonfirmasi secara manual oleh admin.
-        </p>
-
-        <form
-          onSubmit={handleSubmit}
-          className="mt-8 space-y-5 rounded-2xl border border-neutral-800 bg-[#101010] p-6 sm:p-8"
+    <main className="min-h-screen bg-[#080808] px-4 py-10 text-white sm:px-8">
+      <div className="mx-auto max-w-5xl">
+        <a
+          href="/admin"
+          className="mb-6 inline-block text-sm text-red-400 hover:text-red-300"
         >
-          <div>
-            <label htmlFor="name" className="mb-2 block text-sm font-bold">
-              Nama
-            </label>
-            <input
-              id="name"
-              required
-              maxLength={80}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Nama kamu"
-              className="w-full rounded-lg border border-neutral-700 bg-black px-4 py-3 outline-none focus:border-red-500"
-            />
-          </div>
+          ← Kembali ke Admin
+        </a>
 
-          <div>
-            <label htmlFor="discord" className="mb-2 block text-sm font-bold">
-              Username Discord
-            </label>
-            <input
-              id="discord"
-              required
-              maxLength={100}
-              value={discord}
-              onChange={(event) => setDiscord(event.target.value)}
-              placeholder="Username Discord kamu"
-              className="w-full rounded-lg border border-neutral-700 bg-black px-4 py-3 outline-none focus:border-red-500"
-            />
-          </div>
+        <div className="mb-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-500">
+            STOGRA STORE
+          </p>
+          <h1 className="mt-2 text-3xl font-black sm:text-4xl">
+            Admin Chat
+          </h1>
+          <p className="mt-2 text-sm text-zinc-400">
+            Lihat pesan yang dikirim pelanggan melalui website.
+          </p>
+        </div>
 
-          <div>
-            <label htmlFor="product" className="mb-2 block text-sm font-bold">
-              Produk yang diminati
-            </label>
-            <select
-              id="product"
-              value={product}
-              onChange={(event) => setProduct(event.target.value)}
-              className="w-full rounded-lg border border-neutral-700 bg-black px-4 py-3 outline-none focus:border-red-500"
-            >
-              <option value="">Pilih kategori atau produk</option>
-              <option value="Script">Script</option>
-              <option value="UI">UI</option>
-              <option value="Map">Map</option>
-              <option value="Assets">Assets</option>
-              <option value="Services">Services</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="message" className="mb-2 block text-sm font-bold">
-              Detail permintaan
-            </label>
-            <textarea
-              id="message"
-              required
-              maxLength={2000}
-              rows={4}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Jelaskan produk atau layanan yang kamu butuhkan..."
-              className="w-full rounded-lg border border-neutral-700 bg-black px-4 py-3 outline-none focus:border-red-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSending}
-            className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+          <label
+            htmlFor="admin-secret"
+            className="mb-2 block text-sm font-medium text-zinc-300"
           >
-            {isSending ? "Mengirim..." : "Kirim Pesan"}
-          </button>
+            ADMIN API SECRET
+          </label>
 
-          {status && (
-            <div
-              role={isSuccess ? "status" : "alert"}
-              className={`rounded-lg border p-4 ${
-                isSuccess
-                  ? "border-green-800 bg-green-950/30 text-green-300"
-                  : "border-red-800 bg-red-950/30 text-red-300"
-              }`}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              id="admin-secret"
+              type="password"
+              autoComplete="current-password"
+              value={secret}
+              onChange={(event) => setSecret(event.target.value)}
+              placeholder="Masukkan secret admin"
+              className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none focus:border-red-500"
+            />
+
+            <button
+              type="button"
+              onClick={loadMessages}
+              disabled={loading}
+              className="rounded-xl bg-red-600 px-6 py-3 font-bold transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <p className="text-sm leading-6">{status}</p>
-            </div>
+              {loading ? "Memuat..." : "Muat Pesan"}
+            </button>
+          </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="mt-4 rounded-lg border border-red-900 bg-red-950/40 p-3 text-sm text-red-300"
+            >
+              {error}
+            </p>
           )}
+        </section>
 
-          <a
-            href={discordInvite}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary block w-full text-center"
-          >
-            Hubungi Admin di Discord
-          </a>
-        </form>
+        <div className="mb-4 mt-8 flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold">Pesan Pelanggan</h2>
+
+          <span className="rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300">
+            {messages.length} pesan
+          </span>
+        </div>
+
+        {!loaded ? (
+          <div className="rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-zinc-500">
+            Masukkan secret admin, lalu tekan “Muat Pesan”.
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-8 text-center">
+            <p className="font-semibold text-zinc-300">
+              Belum ada pesan pelanggan.
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">
+              Pesan baru akan muncul di sini setelah pelanggan mengirimkannya.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((item) => (
+              <article
+                key={item.id}
+                className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-white">
+                      {item.sender_name || "Pelanggan"}
+                    </h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {item.sender_type === "admin"
+                        ? "Admin"
+                        : "Pelanggan"}
+                    </p>
+                  </div>
+
+                  <time className="text-xs text-zinc-500">
+                    {new Date(item.created_at).toLocaleString("id-ID", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </time>
+                </div>
+
+                <div className="mt-4 whitespace-pre-wrap break-words rounded-xl bg-black p-4 text-sm leading-6 text-zinc-300">
+                  {item.message}
+                </div>
+
+                {item.order_id && (
+                  <p className="mt-3 text-xs text-zinc-500">
+                    Order ID: {item.order_id}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-8 text-xs leading-5 text-zinc-600">
+          Halaman ini hanya untuk membaca pesan. Fitur membalas pesan admin
+          akan memerlukan endpoint tambahan.
+        </p>
       </div>
-    </section>
+    </main>
   );
 }
