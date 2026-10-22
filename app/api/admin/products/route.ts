@@ -228,4 +228,105 @@ export async function PATCH(request: NextRequest) {
 
   if (body.description !== undefined) {
     const description = String(body.description).trim();
-    if (description.length >
+    if (description.length > 5000) {
+      return NextResponse.json(
+        { error: "Deskripsi terlalu panjang." },
+        { status: 400 }
+      );
+    }
+    updates.description = description;
+  }
+
+  if (body.price !== undefined) {
+    const price = Number(body.price);
+    if (!Number.isFinite(price) || price < 0 || price > 1_000_000_000) {
+      return NextResponse.json(
+        { error: "Harga tidak valid." },
+        { status: 400 }
+      );
+    }
+    updates.price = price;
+  }
+
+  if (body.image_url !== undefined) {
+    const imageUrl = String(body.image_url ?? "").trim();
+
+    if (imageUrl) {
+      try {
+        const parsed = new URL(imageUrl);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+          throw new Error("Invalid URL");
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "URL gambar tidak valid." },
+          { status: 400 }
+        );
+      }
+
+      updates.image_url = imageUrl;
+    } else {
+      updates.image_url = null;
+    }
+  }
+
+  if (body.status !== undefined) {
+    const status = String(body.status);
+    if (!["active", "inactive"].includes(status)) {
+      return NextResponse.json(
+        { error: "Status produk tidak valid." },
+        { status: 400 }
+      );
+    }
+    updates.status = status;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json(
+      { error: "Tidak ada perubahan yang dikirim." },
+      { status: 400 }
+    );
+  }
+
+  updates.updated_at = new Date().toISOString();
+
+  const supabase = getAdminClient();
+
+  if (!supabase) {
+    return NextResponse.json(
+      { error: "Konfigurasi database belum tersedia." },
+      { status: 503 }
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .update(updates)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json(
+      {
+        error:
+          error.code === "23505"
+            ? "Slug produk sudah digunakan."
+            : "Produk gagal diperbarui.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!data) {
+    return NextResponse.json(
+      { error: "Produk tidak ditemukan." },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json({
+    message: "Produk berhasil diperbarui.",
+    product: data,
+  });
+}
