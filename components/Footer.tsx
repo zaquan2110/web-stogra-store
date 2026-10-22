@@ -1,45 +1,74 @@
 import Link from "next/link";
-<Link href="/terms" className="hover:text-red-400">
-  Syarat & Ketentuan
-</Link>
-<Link href="/discord" className="hover:text-red-400">
-  Layanan Discord
-</Link>
+import { Code2, MessageCircle } from "lucide-react";
+import { DISCORD_INVITE_URL, STORE_NAME } from "@/lib/constants";
 
 export default function Footer() {
-  const discord =
-    process.env.DISCORD_INVITE_URL ||
-    "https://discord.gg/GANTI_LINK_DISCORD";
-
   return (
-    <footer className="border-t border-neutral-800 bg-[#050505]">
-      <div className="container flex flex-col gap-5 py-8 sm:flex-row sm:items-center sm:justify-between">
+    <footer className="border-t border-white/10 bg-[#080808]">
+      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-3">
         <div>
-          <p className="font-black">
-            STOGRA <span className="text-red">STORE.</span>
-          </p>
-          <p className="mt-2 text-sm text-neutral-500">
-            Roblox Studio Scripts, UI, Maps, Assets & Services.
-          </p>
-        </div>
-
-        <div className="flex gap-5 text-sm text-neutral-400">
-          <Link href="/chat" className="hover:text-red-400">
-            Chat Website
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-400">
+              <Code2 size={22} />
+            </span>
+            <span className="font-bold tracking-wide text-white">
+              {STORE_NAME}
+            </span>
           </Link>
-          <a
-            href={discord}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-red-400"
-          >
-            Discord
-          </a>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-gray-400">
+            Toko produk Roblox Studio untuk Script, UI, Map, Assets, dan
+            Services. Produk dan layanan diproses dengan bantuan staff.
+          </p>
         </div>
 
-        <p className="text-xs text-neutral-600">
-          © {new Date().getFullYear()} STOGRA STORE
-        </p>
+        <div>
+          <h3 className="mb-4 font-semibold text-white">Navigasi</h3>
+          <div className="flex flex-col items-start gap-3 text-sm text-gray-400">
+            <Link className="hover:text-red-400" href="/">
+              Beranda
+            </Link>
+            <Link className="hover:text-red-400" href="/#produk">
+              Katalog Produk
+            </Link>
+            <Link className="hover:text-red-400" href="/chat">
+              Chat Website
+            </Link>
+            <Link className="hover:text-red-400" href="/order-status">
+              Lacak Pesanan
+            </Link>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-4 font-semibold text-white">Informasi & Bantuan</h3>
+          <div className="flex flex-col items-start gap-3 text-sm text-gray-400">
+            <Link className="hover:text-red-400" href="/terms">
+              Syarat & Ketentuan
+            </Link>
+            <Link className="hover:text-red-400" href="/privacy">
+              Kebijakan Privasi
+            </Link>
+            <Link className="hover:text-red-400" href="/refund-policy">
+              Kebijakan Pengembalian
+            </Link>
+            <Link className="hover:text-red-400" href="/delivery-policy">
+              Kebijakan Pengiriman
+            </Link>
+            <a
+              className="inline-flex items-center gap-2 hover:text-red-400"
+              href={DISCORD_INVITE_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MessageCircle size={16} />
+              Discord Support
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10 px-6 py-5 text-center text-xs text-gray-500">
+        © {new Date().getFullYear()} {STORE_NAME}. All rights reserved.
       </div>
     </footer>
   );
