@@ -1,3 +1,4 @@
+
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -8,39 +9,54 @@ export default function ChatPage() {
   const [product, setProduct] = useState("");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setStatus("");
+    setIsSuccess(false);
+    setIsSending(true);
 
-    const orderMessage = [
-      "PESANAN STOGRA STORE",
-      `Nama: ${name}`,
-      `Discord: ${discord}`,
-      `Produk: ${product || "Belum ditentukan"}`,
-      `Pesan: ${message}`,
-    ].join("\n");
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          discord,
+          product,
+          message,
+        }),
+      });
 
-    const discordInvite =
-      process.env.NEXT_PUBLIC_DISCORD_INVITE_URL;
+      const result = await response.json();
 
-    const encodedMessage = encodeURIComponent(orderMessage);
+      if (!response.ok) {
+        throw new Error(result.error || "Pesan gagal dikirim.");
+      }
 
-    setStatus(
-      "Pesanan sudah disiapkan. Salin detail pesanan di bawah dan kirim ke admin melalui Discord."
-    );
-
-    const output = document.getElementById("order-output");
-    if (output) {
-      output.textContent = orderMessage;
+      setIsSuccess(true);
+      setStatus(
+        "Pesan berhasil disimpan! Admin dapat menindaklanjuti permintaanmu."
+      );
+      setMessage("");
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan. Silakan coba lagi."
+      );
+    } finally {
+      setIsSending(false);
     }
-
-    const link = document.getElementById("discord-link");
-    if (link && discordInvite) {
-      link.setAttribute("href", discordInvite);
-    }
-
-    void encodedMessage;
   }
+
+  const discordInvite =
+    process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ||
+    "https://discord.com/app";
 
   return (
     <section className="container section">
@@ -54,8 +70,8 @@ export default function ChatPage() {
         </h1>
 
         <p className="muted mt-4">
-          Isi formulir untuk menyiapkan permintaan pemesanan. Admin akan
-          membantu konfirmasi produk dan pembayaran manual melalui Discord.
+          Kirim pertanyaan atau permintaan produk kepada STOGRA STORE.
+          Pembayaran akan dikonfirmasi secara manual oleh admin.
         </p>
 
         <form
@@ -69,6 +85,7 @@ export default function ChatPage() {
             <input
               id="name"
               required
+              maxLength={80}
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Nama kamu"
@@ -83,9 +100,10 @@ export default function ChatPage() {
             <input
               id="discord"
               required
+              maxLength={100}
               value={discord}
               onChange={(event) => setDiscord(event.target.value)}
-              placeholder="username Discord kamu"
+              placeholder="Username Discord kamu"
               className="w-full rounded-lg border border-neutral-700 bg-black px-4 py-3 outline-none focus:border-red-500"
             />
           </div>
@@ -101,11 +119,11 @@ export default function ChatPage() {
               className="w-full rounded-lg border border-neutral-700 bg-black px-4 py-3 outline-none focus:border-red-500"
             >
               <option value="">Pilih kategori atau produk</option>
-              <option>Scripts</option>
-              <option>UI</option>
-              <option>Maps</option>
-              <option>Assets</option>
-              <option>Services</option>
+              <option value="Script">Script</option>
+              <option value="UI">UI</option>
+              <option value="Map">Map</option>
+              <option value="Assets">Assets</option>
+              <option value="Services">Services</option>
             </select>
           </div>
 
@@ -116,6 +134,7 @@ export default function ChatPage() {
             <textarea
               id="message"
               required
+              maxLength={2000}
               rows={4}
               value={message}
               onChange={(event) => setMessage(event.target.value)}
@@ -124,40 +143,34 @@ export default function ChatPage() {
             />
           </div>
 
-          <button type="submit" className="btn-primary w-full">
-            Siapkan Pesanan
+          <button
+            type="submit"
+            disabled={isSending}
+            className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSending ? "Mengirim..." : "Kirim Pesan"}
           </button>
 
           {status && (
-            <div className="rounded-lg border border-red-900 bg-red-950/30 p-4">
-              <p className="text-sm leading-6 text-neutral-200">{status}</p>
-              <pre
-                id="order-output"
-                className="mt-3 whitespace-pre-wrap break-words text-sm text-neutral-300"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const output = document.getElementById("order-output");
-                  if (output?.textContent) {
-                    void navigator.clipboard.writeText(output.textContent);
-                  }
-                }}
-                className="btn-secondary mt-3 w-full"
-              >
-                Salin Detail Pesanan
-              </button>
+            <div
+              role={isSuccess ? "status" : "alert"}
+              className={`rounded-lg border p-4 ${
+                isSuccess
+                  ? "border-green-800 bg-green-950/30 text-green-300"
+                  : "border-red-800 bg-red-950/30 text-red-300"
+              }`}
+            >
+              <p className="text-sm leading-6">{status}</p>
             </div>
           )}
 
           <a
-            id="discord-link"
-            href="https://discord.com/app"
+            href={discordInvite}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-secondary w-full"
+            className="btn-secondary block w-full text-center"
           >
-            Lanjutkan ke Discord
+            Hubungi Admin di Discord
           </a>
         </form>
       </div>
